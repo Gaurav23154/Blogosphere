@@ -37,16 +37,20 @@ const connectDB = async () => {
   try {
     const mongoURI = process.env.MONGODB_URI;
     if (!mongoURI) {
+      console.error('MONGODB_URI is not defined in environment variables');
       throw new Error('MONGODB_URI is not defined in environment variables');
     }
     
+    console.log('Attempting to connect to MongoDB...');
     await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
     });
-    console.log('Connected to MongoDB');
+    console.log('Connected to MongoDB successfully');
   } catch (err) {
-    console.error('MongoDB connection error:', err);
+    console.error('MongoDB connection error:', err.message);
     // Don't exit process in production
     if (process.env.NODE_ENV !== 'production') {
       process.exit(1);
@@ -56,6 +60,24 @@ const connectDB = async () => {
 
 // Initialize database connection
 connectDB();
+
+// Add connection event listeners
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('MongoDB disconnected');
+  // Attempt to reconnect
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Attempting to reconnect to MongoDB...');
+    connectDB();
+  }
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('MongoDB reconnected');
+});
 
 // ✅ Blog Schema (tags as Array)
 const blogSchema = new mongoose.Schema({
