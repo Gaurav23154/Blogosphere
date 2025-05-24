@@ -1,0 +1,13 @@
+[0:00 - 0:30] Introduction
+"Hello! Today I'm excited to walk you through my full-stack blog application. This project was built using the MERN stack, combining MongoDB, Express.js, React, and Node.js. Let me show you how it works and highlight the key technical features."
+[0:30 - 1:30] Architecture Overview
+"The application follows a modern client-server architecture. On the frontend, we have a React application that provides a responsive user interface. The backend is built with Express.js and Node.js, handling all our API requests and business logic. For data storage, we're using MongoDB, which gives us the flexibility to store and manage our blog posts and user data efficiently."
+[1:30 - 2:30] Key Features Demo
+"Let me demonstrate the main features. First, we have user authentication - users can register and log in securely. Once logged in, they can create, edit, and delete their blog posts. Each blog post can include images, which are stored securely on our server. The interface is intuitive and responsive, working seamlessly on both desktop and mobile devices."
+[2:30 - 3:30] Technical Implementation
+"On the technical side, I've implemented several important features. The backend uses JWT for secure authentication, and all API endpoints are protected with proper middleware. For image uploads, we're using multer to handle file storage. The frontend is built with React hooks for state management, and we're using modern CSS for styling. The application also includes error handling and loading states for a smooth user experience."
+[3:30 - 4:30] Security and Performance
+"Security was a top priority in this project. All user passwords are hashed, and we've implemented proper input validation and sanitization. The application uses environment variables for sensitive data, and we've set up CORS to prevent unauthorized access. For performance, we've implemented proper indexing in MongoDB and optimized our API responses."
+[4:30 - 5:00] Conclusion
+"This project demonstrates my ability to build a full-stack application with modern technologies. It showcases my understanding of both frontend and backend development, as well as important concepts like security, performance optimization, and user experience. I'm particularly proud of the clean architecture and the attention to detail in the user interface. Thank you for watching!"
+This script provides a comprehensive overview of your project while highlighting the technical aspects that would be important to recruiters. The video format allows you to demonstrate the application in action while explaining the technical decisions and implementations.
