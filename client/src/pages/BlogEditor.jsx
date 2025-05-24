@@ -122,7 +122,7 @@ function BlogEditor() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+        <h1 className="text-3xl font-bold bg-linear-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
           {id ? 'Edit Your Story' : 'Create New Story'}
         </h1>
         <div className="flex items-center space-x-4">
@@ -277,7 +277,7 @@ function BlogEditor() {
           <button
             type="submit"
             disabled={isPublishing}
-            className="px-8 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg text-white hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-md hover:shadow-lg flex items-center space-x-2"
+            className="px-8 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 rounded-lg text-white hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-md hover:shadow-lg flex items-center space-x-2"
           >
             {isPublishing ? (
               <>

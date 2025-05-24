@@ -11,7 +11,7 @@ function Navbar() {
   };
 
   return (
-    <nav className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 shadow-lg">
+    <nav className="bg-linear-to-r from-indigo-500 via-purple-500 to-pink-500 shadow-lg">
       <div className="container mx-auto px-6 py-3">
         <div className="flex flex-col md:flex-row justify-between items-center">
           {/* Logo/Brand */}
@@ -74,7 +74,7 @@ function Navbar() {
             {/* User Profile/Login Button */}
             <div className="relative group ml-0 md:ml-4 mt-3 md:mt-0">
               {user ? (
-                <button className="flex items-center space-x-2 bg-white bg-opacity-20 backdrop-blur-sm rounded-full px-4 py-2 text-white font-medium hover:bg-opacity-30 transition-all duration-300">
+                <button className="flex items-center space-x-2 bg-white bg-opacity-20 backdrop-blur-xs rounded-full px-4 py-2 text-white font-medium hover:bg-opacity-30 transition-all duration-300">
                   <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center">
                     <span className="text-indigo-600 font-semibold">
                       {user.name?.charAt(0).toUpperCase() || 'U'}
@@ -85,7 +85,7 @@ function Navbar() {
               ) : (
                 <Link
                   to="/login"
-                  className="flex items-center space-x-2 bg-white bg-opacity-20 backdrop-blur-sm rounded-full px-4 py-2 text-white font-medium hover:bg-opacity-30 transition-all duration-300"
+                  className="flex items-center space-x-2 bg-white bg-opacity-20 backdrop-blur-xs rounded-full px-4 py-2 text-white font-medium hover:bg-opacity-30 transition-all duration-300"
                 >
                   <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">

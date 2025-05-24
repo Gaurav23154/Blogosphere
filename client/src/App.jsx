@@ -47,7 +47,7 @@ function AppRoutes() {
         <Navbar />
         
         <main className="flex-1 container mx-auto px-4 py-8 max-w-7xl">
-          <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8">
+          <div className="bg-white rounded-xl shadow-xs p-6 sm:p-8">
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />

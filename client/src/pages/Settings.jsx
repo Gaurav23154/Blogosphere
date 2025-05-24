@@ -61,13 +61,13 @@ function Settings() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+      <h1 className="text-3xl font-bold mb-8 bg-linear-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
         Account Settings
       </h1>
 
       <div className="grid gap-8 md:grid-cols-2">
         {/* Profile Settings */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="bg-white rounded-xl shadow-xs p-6">
           <h2 className="text-xl font-semibold mb-4">Profile Information</h2>
           <form onSubmit={handleProfileUpdate} className="space-y-4">
             <div>
@@ -109,7 +109,7 @@ function Settings() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+              className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
             >
               Update Profile
             </button>
@@ -117,7 +117,7 @@ function Settings() {
         </div>
 
         {/* Password Settings */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
+        <div className="bg-white rounded-xl shadow-xs p-6">
           <h2 className="text-xl font-semibold mb-4">Change Password</h2>
           <form onSubmit={handlePasswordUpdate} className="space-y-4">
             <div>
@@ -159,7 +159,7 @@ function Settings() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+              className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
             >
               Update Password
             </button>

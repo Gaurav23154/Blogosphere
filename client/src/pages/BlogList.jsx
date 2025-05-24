@@ -74,7 +74,7 @@ function BlogList() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+        <h1 className="text-3xl font-bold bg-linear-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
           My Blogs
         </h1>
         <Link
@@ -98,7 +98,7 @@ function BlogList() {
           <div className="mt-6">
             <Link
               to="/editor"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-xs text-white bg-indigo-600 hover:bg-indigo-700"
             >
               Create your first blog
             </Link>
@@ -107,7 +107,7 @@ function BlogList() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {blogs.map(blog => (
-            <div key={blog._id} className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div key={blog._id} className="bg-white rounded-lg shadow-xs overflow-hidden">
               <div className="p-6">
                 <h2 className="text-xl font-semibold text-gray-900 mb-2">
                   {blog.title}
