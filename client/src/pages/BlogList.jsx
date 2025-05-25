@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api from '../context/AuthContext';
+import { api } from '../context/AuthContext';
 
 function BlogList() {
   const [blogs, setBlogs] = useState([]);
