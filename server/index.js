@@ -32,18 +32,39 @@ const connectDB = async (retries = 5, interval = 5000) => {
       throw new Error('MONGODB_URI is not defined in environment variables');
     }
     
-    console.log('Attempting to connect to MongoDB...');
+    // Log connection attempt (without sensitive info)
+    const sanitizedURI = mongoURI.replace(/\/\/[^:]+:[^@]+@/, '//****:****@');
+    console.log('Attempting to connect to MongoDB...', {
+      uri: sanitizedURI,
+      retries,
+      interval
+    });
+
     await mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 10000, // 10 seconds
       socketTimeoutMS: 45000,
+      connectTimeoutMS: 10000, // 10 seconds
+      heartbeatFrequencyMS: 2000,
+      maxPoolSize: 10,
+      minPoolSize: 5,
+      maxIdleTimeMS: 60000, // 1 minute
+      waitQueueTimeoutMS: 10000, // 10 seconds
       retryWrites: true,
       w: 'majority'
     });
-    console.log('Connected to MongoDB successfully');
+
+    console.log('Connected to MongoDB successfully', {
+      host: mongoose.connection.host,
+      name: mongoose.connection.name,
+      port: mongoose.connection.port
+    });
   } catch (err) {
-    console.error('MongoDB connection error:', err.message);
+    console.error('MongoDB connection error:', {
+      message: err.message,
+      name: err.name,
+      code: err.code,
+      retries
+    });
     
     if (retries > 0) {
       console.log(`Retrying connection... (${retries} attempts remaining)`);
