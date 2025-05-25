@@ -9,7 +9,7 @@ const Blog = require('../models/Blog');
 router.get('/user', auth, async (req, res) => {
   try {
     const blogs = await Blog.find({ author: req.user.id })
-      .sort({ createdAt: -1 });
+      .sort({ updatedAt: -1 });
     res.json(blogs);
   } catch (err) {
     console.error(err.message);
@@ -101,6 +101,50 @@ router.delete('/:id', auth, async (req, res) => {
 
     await blog.deleteOne();
     res.json({ message: 'Blog removed' });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST api/blogs/save-draft
+// @desc    Save a blog draft
+// @access  Private
+router.post('/save-draft', auth, async (req, res) => {
+  try {
+    const { title, content, tags, coverImage } = req.body;
+    const blog = new Blog({
+      title,
+      content,
+      tags,
+      coverImage,
+      author: req.user.id,
+      status: 'draft'
+    });
+    await blog.save();
+    res.status(201).json(blog);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST api/blogs/publish
+// @desc    Publish a blog
+// @access  Private
+router.post('/publish', auth, async (req, res) => {
+  try {
+    const { title, content, tags, coverImage } = req.body;
+    const blog = new Blog({
+      title,
+      content,
+      tags,
+      coverImage,
+      author: req.user.id,
+      status: 'published'
+    });
+    await blog.save();
+    res.status(201).json(blog);
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: 'Server error' });

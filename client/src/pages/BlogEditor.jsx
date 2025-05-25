@@ -1,8 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Editor } from '@tinymce/tinymce-react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Link from '@tiptap/extension-link';
+import Image from '@tiptap/extension-image';
+import Placeholder from '@tiptap/extension-placeholder';
 
 function BlogEditor() {
   const { id } = useParams();
@@ -78,10 +82,27 @@ function BlogEditor() {
     setBlog((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleEditorChange = (content) => {
-    setBlog((prev) => ({ ...prev, content }));
-    calculateCounts(content);
-  };
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Link,
+      Image,
+      Placeholder.configure({
+        placeholder: 'Write your story...'
+      })
+    ],
+    content: blog.content,
+    onUpdate: ({ editor }) => {
+      const html = editor.getHTML();
+      setBlog((prev) => ({ ...prev, content: html }));
+      calculateCounts(html);
+    },
+    editorProps: {
+      attributes: {
+        class: 'prose prose-lg focus:outline-none min-h-[400px] p-4',
+      },
+    },
+  });
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -184,45 +205,8 @@ function BlogEditor() {
         </div>
 
         {/* Content Editor */}
-        <div className="rounded-lg overflow-hidden shadow-lg">
-          <Editor
-            apiKey="cjvt7yxvcaz66kh9hypfx6ygsmklcy883z998wlsggfqck9j"
-            value={blog.content}
-            onEditorChange={handleEditorChange}
-            init={{
-              height: 600,
-              menubar: true,
-              skin: 'oxide-dark',
-              content_css: 'dark',
-              plugins: [
-                'advlist autolink lists link image charmap print preview anchor',
-                'searchreplace visualblocks code fullscreen',
-                'insertdatetime media table paste code help wordcount',
-                'codesample'
-              ],
-              toolbar: `undo redo | formatselect | bold italic underline strikethrough | 
-                        forecolor backcolor | alignleft aligncenter alignright alignjustify | 
-                        bullist numlist outdent indent | link image media codesample | 
-                        table | code | fullscreen | help`,
-              content_style: 'body { font-family:Inter,sans-serif; font-size:16px; line-height:1.6; }',
-              images_upload_handler: async (blobInfo, progress) => {
-                const formData = new FormData();
-                formData.append('image', blobInfo.blob(), blobInfo.filename());
-
-                try {
-                  const response = await axios.post('/api/upload', formData, {
-                    onUploadProgress: (e) => {
-                      progress(e.loaded / e.total * 100);
-                    }
-                  });
-                  return response.data.url;
-                } catch (error) {
-                  toast.error('Error uploading image');
-                  throw new Error('Image upload failed');
-                }
-              }
-            }}
-          />
+        <div className="rounded-lg overflow-hidden shadow-lg bg-white">
+          <EditorContent editor={editor} />
         </div>
 
         {/* Tags Input */}
