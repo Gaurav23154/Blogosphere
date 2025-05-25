@@ -23,109 +23,125 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/blogs', blogRoutes);
 
-// MongoDB connection with better error handling and retry logic
-const connectDB = async (retries = 5, interval = 5000) => {
+// Cache the MongoDB connection
+let cachedDb = null;
+
+// MongoDB connection with caching and better error handling
+const connectDB = async () => {
   try {
+    // If we have a cached connection, return it
+    if (cachedDb) {
+      console.log('Using cached database connection');
+      return cachedDb;
+    }
+
     const mongoURI = process.env.MONGODB_URI;
     if (!mongoURI) {
-      console.error('MONGODB_URI is not defined in environment variables');
       throw new Error('MONGODB_URI is not defined in environment variables');
     }
-    
+
     // Log connection attempt (without sensitive info)
     const sanitizedURI = mongoURI.replace(/\/\/[^:]+:[^@]+@/, '//****:****@');
     console.log('Attempting to connect to MongoDB...', {
-      uri: sanitizedURI,
-      retries,
-      interval
+      uri: sanitizedURI
     });
 
-    await mongoose.connect(mongoURI, {
-      serverSelectionTimeoutMS: 10000, // 10 seconds
+    // Configure mongoose
+    mongoose.set('strictQuery', false);
+    
+    // Connect to MongoDB
+    const connection = await mongoose.connect(mongoURI, {
+      serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-      connectTimeoutMS: 10000, // 10 seconds
-      heartbeatFrequencyMS: 2000,
-      maxPoolSize: 10,
-      minPoolSize: 5,
-      maxIdleTimeMS: 60000, // 1 minute
-      waitQueueTimeoutMS: 10000, // 10 seconds
+      connectTimeoutMS: 5000,
+      maxPoolSize: 1, // Reduce pool size for serverless
+      minPoolSize: 0,
+      maxIdleTimeMS: 30000,
+      waitQueueTimeoutMS: 5000,
       retryWrites: true,
       w: 'majority'
     });
 
+    // Cache the connection
+    cachedDb = connection;
+    
     console.log('Connected to MongoDB successfully', {
       host: mongoose.connection.host,
       name: mongoose.connection.name,
       port: mongoose.connection.port
     });
+
+    return connection;
   } catch (err) {
     console.error('MongoDB connection error:', {
       message: err.message,
       name: err.name,
-      code: err.code,
-      retries
+      code: err.code
     });
     
-    if (retries > 0) {
-      console.log(`Retrying connection... (${retries} attempts remaining)`);
-      setTimeout(() => {
-        connectDB(retries - 1, interval);
-      }, interval);
-    } else {
-      console.error('Failed to connect to MongoDB after multiple attempts');
-      if (process.env.NODE_ENV !== 'production') {
-        process.exit(1);
-      }
+    // Clear the cached connection
+    cachedDb = null;
+    
+    // Don't throw in production, let the app continue running
+    if (process.env.NODE_ENV !== 'production') {
+      throw err;
     }
   }
 };
 
 // Initialize database connection
-connectDB();
+connectDB().catch(console.error);
 
 // Add connection event listeners
 mongoose.connection.on('error', (err) => {
   console.error('MongoDB connection error:', err);
-  // Attempt to reconnect on error
-  if (process.env.NODE_ENV === 'production') {
-    console.log('Attempting to reconnect to MongoDB...');
-    connectDB();
-  }
+  cachedDb = null;
 });
 
 mongoose.connection.on('disconnected', () => {
   console.log('MongoDB disconnected');
-  // Attempt to reconnect
-  if (process.env.NODE_ENV === 'production') {
-    console.log('Attempting to reconnect to MongoDB...');
-    connectDB();
-  }
+  cachedDb = null;
 });
 
 mongoose.connection.on('reconnected', () => {
   console.log('MongoDB reconnected');
+  cachedDb = mongoose.connection;
 });
 
 // Health check endpoint with detailed status
-app.get('/api/health', (req, res) => {
-  const mongoStatus = mongoose.connection.readyState;
-  const mongoStatusText = {
-    0: 'disconnected',
-    1: 'connected',
-    2: 'connecting',
-    3: 'disconnecting'
-  }[mongoStatus] || 'unknown';
+app.get('/api/health', async (req, res) => {
+  try {
+    const mongoStatus = mongoose.connection.readyState;
+    const mongoStatusText = {
+      0: 'disconnected',
+      1: 'connected',
+      2: 'connecting',
+      3: 'disconnecting'
+    }[mongoStatus] || 'unknown';
 
-  res.status(200).json({ 
-    status: 'ok', 
-    timestamp: new Date().toISOString(),
-    mongodb: {
-      status: mongoStatusText,
-      readyState: mongoStatus,
-      host: mongoose.connection.host || 'unknown',
-      name: mongoose.connection.name || 'unknown'
+    // If disconnected, try to reconnect
+    if (mongoStatus === 0) {
+      await connectDB();
     }
-  });
+
+    res.status(200).json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      mongodb: {
+        status: mongoStatusText,
+        readyState: mongoStatus,
+        host: mongoose.connection.host || 'unknown',
+        name: mongoose.connection.name || 'unknown',
+        cached: !!cachedDb
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
 });
 
 // Error handling middleware
