@@ -7,6 +7,7 @@ const app = express();
 
 // Import routes
 const authRoutes = require('./routes/auth');
+const blogRoutes = require('./routes/blogs');
 
 // CORS configuration
 app.use(cors({
@@ -20,9 +21,10 @@ app.use(express.json());
 
 // Use routes
 app.use('/api/auth', authRoutes);
+app.use('/api/blogs', blogRoutes);
 
-// MongoDB connection with better error handling
-const connectDB = async () => {
+// MongoDB connection with better error handling and retry logic
+const connectDB = async (retries = 5, interval = 5000) => {
   try {
     const mongoURI = process.env.MONGODB_URI;
     if (!mongoURI) {
@@ -34,15 +36,25 @@ const connectDB = async () => {
     await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      retryWrites: true,
+      w: 'majority'
     });
     console.log('Connected to MongoDB successfully');
   } catch (err) {
     console.error('MongoDB connection error:', err.message);
-    // Don't exit process in production
-    if (process.env.NODE_ENV !== 'production') {
-      process.exit(1);
+    
+    if (retries > 0) {
+      console.log(`Retrying connection... (${retries} attempts remaining)`);
+      setTimeout(() => {
+        connectDB(retries - 1, interval);
+      }, interval);
+    } else {
+      console.error('Failed to connect to MongoDB after multiple attempts');
+      if (process.env.NODE_ENV !== 'production') {
+        process.exit(1);
+      }
     }
   }
 };
@@ -53,6 +65,11 @@ connectDB();
 // Add connection event listeners
 mongoose.connection.on('error', (err) => {
   console.error('MongoDB connection error:', err);
+  // Attempt to reconnect on error
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Attempting to reconnect to MongoDB...');
+    connectDB();
+  }
 });
 
 mongoose.connection.on('disconnected', () => {
@@ -68,105 +85,26 @@ mongoose.connection.on('reconnected', () => {
   console.log('MongoDB reconnected');
 });
 
-// ✅ Blog Schema (tags as Array)
-const blogSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  content: { type: String, required: true },
-  tags: { type: [String], default: [] },
-  coverImage: { type: String },
-  status: { type: String, enum: ['draft', 'published'], default: 'draft' },
-  created_at: { type: Date, default: Date.now },
-  updated_at: { type: Date, default: Date.now }
-});
-
-// ✅ Auto-update `updated_at`
-blogSchema.pre('save', function(next) {
-  this.updated_at = new Date();
-  next();
-});
-
-blogSchema.pre('findOneAndUpdate', function(next) {
-  this._update.updated_at = new Date();
-  next();
-});
-
-const Blog = mongoose.model('Blog', blogSchema);
-
-// Health check endpoint
+// Health check endpoint with detailed status
 app.get('/api/health', (req, res) => {
+  const mongoStatus = mongoose.connection.readyState;
+  const mongoStatusText = {
+    0: 'disconnected',
+    1: 'connected',
+    2: 'connecting',
+    3: 'disconnecting'
+  }[mongoStatus] || 'unknown';
+
   res.status(200).json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
-    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    mongodb: {
+      status: mongoStatusText,
+      readyState: mongoStatus,
+      host: mongoose.connection.host || 'unknown',
+      name: mongoose.connection.name || 'unknown'
+    }
   });
-});
-
-// ✅ Create blog
-app.post('/api/blogs', async (req, res) => {
-  try {
-    const { title, content, tags, status, coverImage } = req.body;
-
-    if (!title || !content) {
-      return res.status(400).json({ error: 'Title and content are required' });
-    }
-
-    const blog = await Blog.create({
-      title,
-      content,
-      tags,
-      coverImage,
-      status: status || 'draft'
-    });
-
-    res.status(201).json(blog);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ✅ Update blog
-app.put('/api/blogs/:id', async (req, res) => {
-  try {
-    const { title, content, tags, status, coverImage } = req.body;
-
-    const updatedBlog = await Blog.findByIdAndUpdate(
-      req.params.id,
-      { title, content, tags, coverImage, status },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedBlog) {
-      return res.status(404).json({ error: 'Blog not found' });
-    }
-
-    res.json(updatedBlog);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ✅ Get all blogs grouped by status
-app.get('/api/blogs', async (req, res) => {
-  try {
-    const published = await Blog.find({ status: 'published' }).sort({ updated_at: -1 });
-    const drafts = await Blog.find({ status: 'draft' }).sort({ updated_at: -1 });
-    res.json({ published, drafts });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ✅ Get single blog
-app.get('/api/blogs/:id', async (req, res) => {
-  try {
-    const blog = await Blog.findById(req.params.id);
-    if (!blog) {
-      return res.status(404).json({ error: 'Blog not found' });
-    }
-    res.json(blog);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
 });
 
 // Error handling middleware
