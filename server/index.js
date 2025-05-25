@@ -26,88 +26,113 @@ app.use('/api/blogs', blogRoutes);
 // Cache the MongoDB connection
 let cachedDb = null;
 let isConnecting = false;
+let connectionPromise = null;
+let retryCount = 0;
+const MAX_RETRIES = 3;
 
 // MongoDB connection with caching and better error handling
 const connectDB = async () => {
-  // If already connecting, return the promise
-  if (isConnecting) {
+  // If we have a cached connection and it's healthy, return it
+  if (cachedDb && mongoose.connection.readyState === 1) {
+    console.log('Using cached database connection');
+    return cachedDb;
+  }
+
+  // If we're already connecting, return the existing promise
+  if (connectionPromise) {
     console.log('Connection attempt already in progress');
-    return;
+    return connectionPromise;
   }
 
   try {
     isConnecting = true;
+    connectionPromise = (async () => {
+      const mongoURI = process.env.MONGODB_URI;
+      if (!mongoURI) {
+        throw new Error('MONGODB_URI is not defined in environment variables');
+      }
 
-    // If we have a cached connection, return it
-    if (cachedDb && mongoose.connection.readyState === 1) {
-      console.log('Using cached database connection');
-      return cachedDb;
-    }
+      // Ensure the URI includes the database name
+      const uriWithDb = mongoURI.includes('/blogosphere') 
+        ? mongoURI 
+        : mongoURI.replace(/\?/, '/blogosphere?');
 
-    const mongoURI = process.env.MONGODB_URI;
-    if (!mongoURI) {
-      throw new Error('MONGODB_URI is not defined in environment variables');
-    }
+      // Log connection attempt (without sensitive info)
+      const sanitizedURI = uriWithDb.replace(/\/\/[^:]+:[^@]+@/, '//****:****@');
+      console.log('Attempting to connect to MongoDB...', {
+        uri: sanitizedURI,
+        readyState: mongoose.connection.readyState,
+        retryCount
+      });
 
-    // Ensure the URI includes the database name
-    const uriWithDb = mongoURI.includes('/blogosphere') 
-      ? mongoURI 
-      : mongoURI.replace(/\?/, '/blogosphere?');
+      // Configure mongoose
+      mongoose.set('strictQuery', false);
+      
+      // Connect to MongoDB with aggressive timeouts
+      const connection = await mongoose.connect(uriWithDb, {
+        serverSelectionTimeoutMS: 2000,
+        socketTimeoutMS: 2000,
+        connectTimeoutMS: 2000,
+        maxPoolSize: 1,
+        minPoolSize: 0,
+        maxIdleTimeMS: 5000,
+        waitQueueTimeoutMS: 2000,
+        retryWrites: true,
+        w: 'majority',
+        ssl: true,
+        tls: true,
+        tlsAllowInvalidCertificates: false,
+        tlsAllowInvalidHostnames: false,
+        directConnection: true,
+        retryReads: true,
+        heartbeatFrequencyMS: 2000
+      });
 
-    // Log connection attempt (without sensitive info)
-    const sanitizedURI = uriWithDb.replace(/\/\/[^:]+:[^@]+@/, '//****:****@');
-    console.log('Attempting to connect to MongoDB...', {
-      uri: sanitizedURI,
-      readyState: mongoose.connection.readyState
-    });
+      // Reset retry count on successful connection
+      retryCount = 0;
+      
+      // Cache the connection
+      cachedDb = connection;
+      isConnecting = false;
+      connectionPromise = null;
+      
+      console.log('Connected to MongoDB successfully', {
+        host: mongoose.connection.host,
+        name: mongoose.connection.name,
+        port: mongoose.connection.port,
+        readyState: mongoose.connection.readyState,
+        database: mongoose.connection.db.databaseName
+      });
 
-    // Configure mongoose
-    mongoose.set('strictQuery', false);
-    
-    // Connect to MongoDB with minimal options
-    const connection = await mongoose.connect(uriWithDb, {
-      serverSelectionTimeoutMS: 3000,
-      socketTimeoutMS: 3000,
-      connectTimeoutMS: 3000,
-      maxPoolSize: 1,
-      minPoolSize: 0,
-      maxIdleTimeMS: 10000,
-      waitQueueTimeoutMS: 3000,
-      retryWrites: true,
-      w: 'majority',
-      ssl: true,
-      tls: true,
-      tlsAllowInvalidCertificates: false,
-      tlsAllowInvalidHostnames: false,
-      directConnection: false,
-      replicaSet: 'atlas-8o9cop-shard-0',
-      retryReads: true
-    });
+      return connection;
+    })();
 
-    // Cache the connection
-    cachedDb = connection;
-    isConnecting = false;
-    
-    console.log('Connected to MongoDB successfully', {
-      host: mongoose.connection.host,
-      name: mongoose.connection.name,
-      port: mongoose.connection.port,
-      readyState: mongoose.connection.readyState,
-      database: mongoose.connection.db.databaseName
-    });
-
-    return connection;
+    return await connectionPromise;
   } catch (err) {
     console.error('MongoDB connection error:', {
       message: err.message,
       name: err.name,
       code: err.code,
-      readyState: mongoose.connection.readyState
+      readyState: mongoose.connection.readyState,
+      retryCount
     });
     
-    // Clear the cached connection
+    // Clear the cached connection and promise
     cachedDb = null;
     isConnecting = false;
+    connectionPromise = null;
+
+    // Implement retry logic
+    if (retryCount < MAX_RETRIES) {
+      retryCount++;
+      console.log(`Retrying connection... (${MAX_RETRIES - retryCount} attempts remaining)`);
+      // Wait for a short time before retrying
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return connectDB();
+    }
+    
+    // Reset retry count after max retries
+    retryCount = 0;
     
     // Don't throw in production, let the app continue running
     if (process.env.NODE_ENV !== 'production') {
@@ -124,6 +149,7 @@ mongoose.connection.on('error', (err) => {
   console.error('MongoDB connection error:', err);
   cachedDb = null;
   isConnecting = false;
+  connectionPromise = null;
   // Attempt immediate reconnection
   connectDB().catch(console.error);
 });
@@ -132,6 +158,7 @@ mongoose.connection.on('disconnected', () => {
   console.log('MongoDB disconnected');
   cachedDb = null;
   isConnecting = false;
+  connectionPromise = null;
   // Attempt immediate reconnection
   connectDB().catch(console.error);
 });
@@ -140,6 +167,8 @@ mongoose.connection.on('reconnected', () => {
   console.log('MongoDB reconnected');
   cachedDb = mongoose.connection;
   isConnecting = false;
+  connectionPromise = null;
+  retryCount = 0;
 });
 
 // Health check endpoint with detailed status
@@ -167,7 +196,9 @@ app.get('/api/health', async (req, res) => {
         host: mongoose.connection.host || 'unknown',
         name: mongoose.connection.name || 'unknown',
         cached: !!cachedDb,
-        isConnecting
+        isConnecting,
+        hasConnectionPromise: !!connectionPromise,
+        retryCount
       }
     });
   } catch (error) {
