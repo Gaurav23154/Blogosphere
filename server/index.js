@@ -5,6 +5,9 @@ require('dotenv').config();
 
 const app = express();
 
+// Import routes
+const authRoutes = require('./routes/auth');
+
 // CORS configuration
 app.use(cors({
   origin: true, // Allow all origins in development
@@ -14,6 +17,9 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// Use routes
+app.use('/api/auth', authRoutes);
 
 // MongoDB connection with better error handling
 const connectDB = async () => {
