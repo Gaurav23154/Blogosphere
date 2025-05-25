@@ -14,17 +14,9 @@ const BlogSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  tags: {
-    type: [String],
-    default: []
-  },
-  coverImage: {
-    type: String
-  },
-  status: {
-    type: String,
-    enum: ['draft', 'published'],
-    default: 'draft'
+  isDraft: {
+    type: Boolean,
+    default: false
   },
   createdAt: {
     type: Date,

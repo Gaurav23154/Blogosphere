@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import axios from 'axios';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Link from '@tiptap/extension-link';
-import Image from '@tiptap/extension-image';
-import Placeholder from '@tiptap/extension-placeholder';
+import { 
+  FiImage, 
+  FiSave, 
+  FiX, 
+  FiShare2, 
+  FiLoader 
+} from 'react-icons/fi';
 
 function BlogEditor() {
   const { id } = useParams();
@@ -80,29 +82,10 @@ function BlogEditor() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setBlog((prev) => ({ ...prev, [name]: value }));
+    if (name === 'content') {
+      calculateCounts(value);
+    }
   };
-
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Link,
-      Image,
-      Placeholder.configure({
-        placeholder: 'Write your story...'
-      })
-    ],
-    content: blog.content,
-    onUpdate: ({ editor }) => {
-      const html = editor.getHTML();
-      setBlog((prev) => ({ ...prev, content: html }));
-      calculateCounts(html);
-    },
-    editorProps: {
-      attributes: {
-        class: 'prose prose-lg focus:outline-none min-h-[400px] p-4',
-      },
-    },
-  });
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -173,9 +156,7 @@ function BlogEditor() {
               />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
+                <FiImage className="h-12 w-12" />
                 <span>Click to upload cover image</span>
               </div>
             )}
@@ -205,8 +186,14 @@ function BlogEditor() {
         </div>
 
         {/* Content Editor */}
-        <div className="rounded-lg overflow-hidden shadow-lg bg-white">
-          <EditorContent editor={editor} />
+        <div className="rounded-lg overflow-hidden shadow-lg">
+          <textarea
+            name="content"
+            value={blog.content}
+            onChange={handleChange}
+            className="w-full h-[600px] p-4 text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 resize-none"
+            placeholder="Start writing your story here..."
+          />
         </div>
 
         {/* Tags Input */}
@@ -235,17 +222,12 @@ function BlogEditor() {
             >
               {isSaving ? (
                 <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
+                  <FiLoader className="animate-spin h-4 w-4 text-gray-600" />
                   <span>Saving...</span>
                 </>
               ) : (
                 <>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                  </svg>
+                  <FiSave className="h-5 w-5" />
                   <span>Save Draft</span>
                 </>
               )}
@@ -253,9 +235,10 @@ function BlogEditor() {
             <button
               type="button"
               onClick={() => navigate('/blogs')}
-              className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex items-center space-x-2"
             >
-              Cancel
+              <FiX className="h-5 w-5" />
+              <span>Cancel</span>
             </button>
           </div>
           <button
@@ -265,17 +248,12 @@ function BlogEditor() {
           >
             {isPublishing ? (
               <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <FiLoader className="animate-spin h-4 w-4 text-white" />
                 <span>Publishing...</span>
               </>
             ) : (
               <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
+                <FiShare2 className="h-5 w-5" />
                 <span>Publish Story</span>
               </>
             )}

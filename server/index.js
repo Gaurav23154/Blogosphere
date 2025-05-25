@@ -7,206 +7,217 @@ const app = express();
 
 // Import routes
 const authRoutes = require('./routes/auth');
-const blogRoutes = require('./routes/blogs');
 
 // CORS configuration
-app.use(cors({
-  origin: true, // Allow all origins in development
+const allowedOrigins = [
+  'http://localhost:5173', // Local development
+  'https://blogosphere-git-main-gaurav-jaiswals-projects-031b18ef.vercel.app', // Vercel deployment
+  'https://blogosphere.vercel.app' // Production domain
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    // In development, allow all origins
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('Blocked by CORS:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 86400 // 24 hours
+};
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
+// Add security headers middleware
+app.use((req, res, next) => {
+  // Set CORS headers for all responses
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With');
+  
+  // Add security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  
+  next();
+});
 
 app.use(express.json());
 
 // Use routes
 app.use('/api/auth', authRoutes);
-app.use('/api/blogs', blogRoutes);
 
-// Cache the MongoDB connection
-let cachedDb = null;
-let isConnecting = false;
-let connectionPromise = null;
-let retryCount = 0;
-const MAX_RETRIES = 3;
-
-// MongoDB connection with caching and better error handling
+// MongoDB connection with better error handling
 const connectDB = async () => {
-  // If we have a cached connection and it's healthy, return it
-  if (cachedDb && mongoose.connection.readyState === 1) {
-    console.log('Using cached database connection');
-    return cachedDb;
-  }
-
-  // If we're already connecting, return the existing promise
-  if (connectionPromise) {
-    console.log('Connection attempt already in progress');
-    return connectionPromise;
-  }
-
   try {
-    isConnecting = true;
-    connectionPromise = (async () => {
-      const mongoURI = process.env.MONGODB_URI;
-      if (!mongoURI) {
-        throw new Error('MONGODB_URI is not defined in environment variables');
-      }
-
-      // Ensure the URI includes the database name
-      const uriWithDb = mongoURI.includes('/blogosphere') 
-        ? mongoURI 
-        : mongoURI.replace(/\?/, '/blogosphere?');
-
-      // Log connection attempt (without sensitive info)
-      const sanitizedURI = uriWithDb.replace(/\/\/[^:]+:[^@]+@/, '//****:****@');
-      console.log('Attempting to connect to MongoDB...', {
-        uri: sanitizedURI,
-        readyState: mongoose.connection.readyState,
-        retryCount
-      });
-
-      // Configure mongoose
-      mongoose.set('strictQuery', false);
-      
-      // Connect to MongoDB with aggressive timeouts
-      const connection = await mongoose.connect(uriWithDb, {
-        serverSelectionTimeoutMS: 2000,
-        socketTimeoutMS: 2000,
-        connectTimeoutMS: 2000,
-        maxPoolSize: 1,
-        minPoolSize: 0,
-        maxIdleTimeMS: 5000,
-        waitQueueTimeoutMS: 2000,
-        retryWrites: true,
-        w: 'majority',
-        ssl: true,
-        tls: true,
-        tlsAllowInvalidCertificates: false,
-        tlsAllowInvalidHostnames: false,
-        directConnection: true,
-        retryReads: true,
-        heartbeatFrequencyMS: 2000
-      });
-
-      // Reset retry count on successful connection
-      retryCount = 0;
-      
-      // Cache the connection
-      cachedDb = connection;
-      isConnecting = false;
-      connectionPromise = null;
-      
-      console.log('Connected to MongoDB successfully', {
-        host: mongoose.connection.host,
-        name: mongoose.connection.name,
-        port: mongoose.connection.port,
-        readyState: mongoose.connection.readyState,
-        database: mongoose.connection.db.databaseName
-      });
-
-      return connection;
-    })();
-
-    return await connectionPromise;
-  } catch (err) {
-    console.error('MongoDB connection error:', {
-      message: err.message,
-      name: err.name,
-      code: err.code,
-      readyState: mongoose.connection.readyState,
-      retryCount
-    });
-    
-    // Clear the cached connection and promise
-    cachedDb = null;
-    isConnecting = false;
-    connectionPromise = null;
-
-    // Implement retry logic
-    if (retryCount < MAX_RETRIES) {
-      retryCount++;
-      console.log(`Retrying connection... (${MAX_RETRIES - retryCount} attempts remaining)`);
-      // Wait for a short time before retrying
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return connectDB();
+    const mongoURI = process.env.MONGODB_URI;
+    if (!mongoURI) {
+      console.error('MONGODB_URI is not defined in environment variables');
+      throw new Error('MONGODB_URI is not defined in environment variables');
     }
     
-    // Reset retry count after max retries
-    retryCount = 0;
-    
-    // Don't throw in production, let the app continue running
+    console.log('Attempting to connect to MongoDB...');
+    await mongoose.connect(mongoURI, {
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+      maxPoolSize: 10, // Maximum number of connections in the pool
+      minPoolSize: 5, // Minimum number of connections in the pool
+      retryWrites: true, // Retry write operations if they fail
+      retryReads: true // Retry read operations if they fail
+    });
+    console.log('Connected to MongoDB successfully');
+  } catch (err) {
+    console.error('MongoDB connection error:', err.message);
+    // Don't exit process in production
     if (process.env.NODE_ENV !== 'production') {
-      throw err;
+      process.exit(1);
     }
   }
 };
 
 // Initialize database connection
-connectDB().catch(console.error);
+connectDB();
 
 // Add connection event listeners
 mongoose.connection.on('error', (err) => {
   console.error('MongoDB connection error:', err);
-  cachedDb = null;
-  isConnecting = false;
-  connectionPromise = null;
-  // Attempt immediate reconnection
-  connectDB().catch(console.error);
 });
 
 mongoose.connection.on('disconnected', () => {
   console.log('MongoDB disconnected');
-  cachedDb = null;
-  isConnecting = false;
-  connectionPromise = null;
-  // Attempt immediate reconnection
-  connectDB().catch(console.error);
+  // Attempt to reconnect
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Attempting to reconnect to MongoDB...');
+    connectDB();
+  }
 });
 
 mongoose.connection.on('reconnected', () => {
   console.log('MongoDB reconnected');
-  cachedDb = mongoose.connection;
-  isConnecting = false;
-  connectionPromise = null;
-  retryCount = 0;
 });
 
-// Health check endpoint with detailed status
-app.get('/api/health', async (req, res) => {
-  try {
-    const mongoStatus = mongoose.connection.readyState;
-    const mongoStatusText = {
-      0: 'disconnected',
-      1: 'connected',
-      2: 'connecting',
-      3: 'disconnecting'
-    }[mongoStatus] || 'unknown';
+// ✅ Blog Schema (tags as Array)
+const blogSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  content: { type: String, required: true },
+  tags: { type: [String], default: [] },
+  coverImage: { type: String },
+  status: { type: String, enum: ['draft', 'published'], default: 'draft' },
+  created_at: { type: Date, default: Date.now },
+  updated_at: { type: Date, default: Date.now }
+});
 
-    // If not connected, try to reconnect
-    if (mongoStatus !== 1) {
-      await connectDB();
+// ✅ Auto-update `updated_at`
+blogSchema.pre('save', function(next) {
+  this.updated_at = new Date();
+  next();
+});
+
+blogSchema.pre('findOneAndUpdate', function(next) {
+  this._update.updated_at = new Date();
+  next();
+});
+
+const Blog = mongoose.model('Blog', blogSchema);
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
+});
+
+// ✅ Create blog
+app.post('/api/blogs', async (req, res) => {
+  try {
+    const { title, content, tags, status, coverImage } = req.body;
+
+    if (!title || !content) {
+      return res.status(400).json({ error: 'Title and content are required' });
     }
 
-    res.status(200).json({ 
-      status: 'ok', 
-      timestamp: new Date().toISOString(),
-      mongodb: {
-        status: mongoStatusText,
-        readyState: mongoStatus,
-        host: mongoose.connection.host || 'unknown',
-        name: mongoose.connection.name || 'unknown',
-        cached: !!cachedDb,
-        isConnecting,
-        hasConnectionPromise: !!connectionPromise,
-        retryCount
-      }
+    const blog = await Blog.create({
+      title,
+      content,
+      tags,
+      coverImage,
+      status: status || 'draft'
     });
+
+    res.status(201).json(blog);
   } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      timestamp: new Date().toISOString(),
-      error: error.message
-    });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ Update blog
+app.put('/api/blogs/:id', async (req, res) => {
+  try {
+    const { title, content, tags, status, coverImage } = req.body;
+
+    const updatedBlog = await Blog.findByIdAndUpdate(
+      req.params.id,
+      { title, content, tags, coverImage, status },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedBlog) {
+      return res.status(404).json({ error: 'Blog not found' });
+    }
+
+    res.json(updatedBlog);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ Get all blogs grouped by status
+app.get('/api/blogs', async (req, res) => {
+  try {
+    const published = await Blog.find({ status: 'published' }).sort({ updated_at: -1 });
+    const drafts = await Blog.find({ status: 'draft' }).sort({ updated_at: -1 });
+    res.json({ published, drafts });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ Get single blog
+app.get('/api/blogs/:id', async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    if (!blog) {
+      return res.status(404).json({ error: 'Blog not found' });
+    }
+    res.json(blog);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
