@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import api from '../context/AuthContext';
 
 function BlogList() {
   const [blogs, setBlogs] = useState([]);
@@ -16,11 +16,7 @@ function BlogList() {
   const fetchBlogs = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:5000/api/blogs/user', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      const response = await api.get('/blogs/user');
       setBlogs(response.data);
       setError(null);
     } catch (err) {
@@ -37,11 +33,7 @@ function BlogList() {
     }
 
     try {
-      await axios.delete(`http://localhost:5000/api/blogs/${id}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      await api.delete(`/blogs/${id}`);
       setBlogs(blogs.filter(blog => blog._id !== id));
     } catch (err) {
       console.error('Error deleting blog:', err);
