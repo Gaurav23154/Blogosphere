@@ -6,28 +6,11 @@ require('dotenv').config();
 const app = express();
 
 // CORS configuration
-const allowedOrigins = [
-  'http://localhost:5173', // Local development
-  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null, // Backend Vercel URL
-  process.env.CLIENT_URL, // Frontend URL (optional)
-  process.env.FRONTEND_URL // Frontend URL (optional)
-].filter(Boolean);
-
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log('Blocked by CORS:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
+  origin: true, // Allow all origins in development
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
