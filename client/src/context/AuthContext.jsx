@@ -93,30 +93,30 @@ api.interceptors.response.use(
 
 const AuthContext = createContext();
 
-export function AuthProvider({ children }) {
+export const useAuth = () => useContext(AuthContext);
+
+export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in
     const token = localStorage.getItem('token');
     if (token) {
-      fetchUserProfile();
+      api.get('/auth/me')
+        .then(response => {
+          setUser(response.data);
+        })
+        .catch(() => {
+          localStorage.removeItem('token');
+          setUser(null);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
     } else {
       setLoading(false);
     }
   }, []);
-
-  const fetchUserProfile = async () => {
-    try {
-      const response = await api.get('/auth/profile');
-      setUser(response.data);
-    } catch (error) {
-      localStorage.removeItem('token');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const login = async (email, password) => {
     try {
@@ -125,24 +125,30 @@ export function AuthProvider({ children }) {
       localStorage.setItem('token', token);
       setUser(user);
       toast.success('Welcome back!');
-      return true;
+      return { success: true };
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Login failed');
-      return false;
+      toast.error(error.response?.data?.error || 'Login failed');
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Login failed'
+      };
     }
   };
 
-  const register = async (userData) => {
+  const register = async (name, email, password) => {
     try {
-      const response = await api.post('/auth/register', userData);
+      const response = await api.post('/auth/register', { name, email, password });
       const { token, user } = response.data;
       localStorage.setItem('token', token);
       setUser(user);
       toast.success('Account created successfully!');
-      return true;
+      return { success: true };
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Registration failed');
-      return false;
+      toast.error(error.response?.data?.error || 'Registration failed');
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Registration failed'
+      };
     }
   };
 
@@ -164,20 +170,19 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const value = {
+    user,
+    loading,
+    login,
+    register,
+    logout,
+    updateProfile,
+    api
+  };
+
   return (
-    <AuthContext.Provider value={{
-      user,
-      loading,
-      login,
-      register,
-      logout,
-      updateProfile
-    }}>
-      {children}
+    <AuthContext.Provider value={value}>
+      {!loading && children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
-} 
+}; 

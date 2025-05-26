@@ -5,6 +5,7 @@ require('dotenv').config();
 const multer = require('multer');
 const path = require('path');
 const cloudinary = require('cloudinary').v2;
+const auth = require('./middleware/auth');
 
 const app = express();
 
@@ -29,53 +30,9 @@ app.use(express.json());
 // Use routes
 app.use('/api/auth', authRoutes);
 
-// MongoDB connection with better error handling
-const connectDB = async () => {
-  try {
-    const mongoURI = process.env.MONGODB_URI;
-    if (!mongoURI) {
-      console.error('MONGODB_URI is not defined in environment variables');
-      throw new Error('MONGODB_URI is not defined in environment variables');
-    }
-    
-    console.log('Attempting to connect to MongoDB...');
-    await mongoose.connect(mongoURI, {
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
-      maxPoolSize: 10, // Maximum number of connections in the pool
-      minPoolSize: 5, // Minimum number of connections in the pool
-      retryWrites: true, // Retry write operations if they fail
-      retryReads: true // Retry read operations if they fail
-    });
-    console.log('Connected to MongoDB successfully');
-  } catch (err) {
-    console.error('MongoDB connection error:', err.message);
-    // Don't exit process in production
-    if (process.env.NODE_ENV !== 'production') {
-      process.exit(1);
-    }
-  }
-};
-
-// Initialize database connection
-connectDB();
-
-// Add connection event listeners
-mongoose.connection.on('error', (err) => {
-  console.error('MongoDB connection error:', err);
-});
-
-mongoose.connection.on('disconnected', () => {
-  console.log('MongoDB disconnected');
-  // Attempt to reconnect
-  if (process.env.NODE_ENV === 'production') {
-    console.log('Attempting to reconnect to MongoDB...');
-    connectDB();
-  }
-});
-
-mongoose.connection.on('reconnected', () => {
-  console.log('MongoDB reconnected');
+// Configure Cloudinary
+cloudinary.config({
+  url: process.env.CLOUDINARY_URL
 });
 
 // ✅ Blog Schema
@@ -85,7 +42,7 @@ const blogSchema = new mongoose.Schema({
   tags: { type: [String], default: [] },
   coverImage: { type: String },
   status: { type: String, enum: ['draft', 'published'], default: 'draft' },
-  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now }
 });
@@ -131,7 +88,7 @@ app.post('/api/blogs', async (req, res) => {
 });
 
 // ✅ Save draft
-app.post('/api/blogs/save-draft', async (req, res) => {
+app.post('/api/blogs/save-draft', auth, async (req, res) => {
   try {
     const { title, content, tags, coverImage } = req.body;
 
@@ -142,7 +99,7 @@ app.post('/api/blogs/save-draft', async (req, res) => {
     const blog = await Blog.create({
       title,
       content,
-      tags: tags || [],
+      tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
       coverImage,
       status: 'draft',
       author: req.user.id
@@ -156,7 +113,7 @@ app.post('/api/blogs/save-draft', async (req, res) => {
 });
 
 // ✅ Publish blog
-app.post('/api/blogs/publish', async (req, res) => {
+app.post('/api/blogs/publish', auth, async (req, res) => {
   try {
     const { title, content, tags, coverImage } = req.body;
 
@@ -167,7 +124,7 @@ app.post('/api/blogs/publish', async (req, res) => {
     const blog = await Blog.create({
       title,
       content,
-      tags: tags || [],
+      tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
       coverImage,
       status: 'published',
       author: req.user.id
@@ -181,7 +138,7 @@ app.post('/api/blogs/publish', async (req, res) => {
 });
 
 // ✅ Get user's blogs
-app.get('/api/blogs/user', async (req, res) => {
+app.get('/api/blogs/user', auth, async (req, res) => {
   try {
     const blogs = await Blog.find({ author: req.user.id })
       .sort({ updated_at: -1 });
@@ -193,7 +150,7 @@ app.get('/api/blogs/user', async (req, res) => {
 });
 
 // ✅ Get all blogs
-app.get('/api/blogs', async (req, res) => {
+app.get('/api/blogs', auth, async (req, res) => {
   try {
     const published = await Blog.find({ status: 'published' })
       .sort({ updated_at: -1 });
@@ -209,7 +166,7 @@ app.get('/api/blogs', async (req, res) => {
 });
 
 // ✅ Get single blog
-app.get('/api/blogs/:id', async (req, res) => {
+app.get('/api/blogs/:id', auth, async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);
     if (!blog) {
@@ -223,7 +180,7 @@ app.get('/api/blogs/:id', async (req, res) => {
 });
 
 // ✅ Update blog
-app.put('/api/blogs/:id', async (req, res) => {
+app.put('/api/blogs/:id', auth, async (req, res) => {
   try {
     const { title, content, tags, status, coverImage } = req.body;
     const blog = await Blog.findById(req.params.id);
@@ -241,7 +198,7 @@ app.put('/api/blogs/:id', async (req, res) => {
       { 
         title, 
         content, 
-        tags: tags || blog.tags, 
+        tags: tags ? tags.split(',').map(tag => tag.trim()) : blog.tags, 
         coverImage: coverImage || blog.coverImage,
         status: status || blog.status,
         updated_at: new Date()
@@ -257,7 +214,7 @@ app.put('/api/blogs/:id', async (req, res) => {
 });
 
 // ✅ Delete blog
-app.delete('/api/blogs/:id', async (req, res) => {
+app.delete('/api/blogs/:id', auth, async (req, res) => {
   try {
     const blog = await Blog.findById(req.params.id);
 
@@ -275,11 +232,6 @@ app.delete('/api/blogs/:id', async (req, res) => {
     console.error('Delete blog error:', error);
     res.status(500).json({ error: error.message });
   }
-});
-
-// Configure Cloudinary
-cloudinary.config({
-  url: process.env.CLOUDINARY_URL
 });
 
 // Configure multer for memory storage
@@ -300,7 +252,7 @@ const upload = multer({
   }
 });
 
-app.post('/api/upload', upload.single('image'), async (req, res) => {
+app.post('/api/upload', auth, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
