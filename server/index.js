@@ -66,17 +66,23 @@ const connectDB = async () => {
     
     console.log('Attempting to connect to MongoDB...');
     await mongoose.connect(mongoURI, {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 10000, // Increased timeout
       socketTimeoutMS: 45000,
       maxPoolSize: 10,
       minPoolSize: 5,
       retryWrites: true,
-      retryReads: true
+      retryReads: true,
+      useNewUrlParser: true,
+      useUnifiedTopology: true
     });
     console.log('Connected to MongoDB successfully');
   } catch (err) {
     console.error('MongoDB connection error:', err.message);
-    if (process.env.NODE_ENV !== 'production') {
+    // In production, we'll retry the connection instead of exiting
+    if (process.env.NODE_ENV === 'production') {
+      console.log('Retrying connection in 5 seconds...');
+      setTimeout(connectDB, 5000);
+    } else {
       process.exit(1);
     }
   }
@@ -88,13 +94,17 @@ connectDB();
 // Add connection event listeners
 mongoose.connection.on('error', (err) => {
   console.error('MongoDB connection error:', err);
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Attempting to reconnect to MongoDB...');
+    setTimeout(connectDB, 5000);
+  }
 });
 
 mongoose.connection.on('disconnected', () => {
   console.log('MongoDB disconnected');
   if (process.env.NODE_ENV === 'production') {
     console.log('Attempting to reconnect to MongoDB...');
-    connectDB();
+    setTimeout(connectDB, 5000);
   }
 });
 
