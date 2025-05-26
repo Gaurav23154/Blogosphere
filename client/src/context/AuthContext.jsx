@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 const isDevelopment = import.meta.env.DEV;
 const API_URL = isDevelopment 
   ? 'http://localhost:5000/api' 
-  : import.meta.env.VITE_API_URL || 'https://blogosphere-pearl.vercel.app/api';
+  : 'https://blogosphere-pearl.vercel.app/api';
 
 console.log('Current API URL:', API_URL); // Debug log
 
@@ -17,7 +17,7 @@ export const api = axios.create({
     'Accept': 'application/json'
   },
   withCredentials: true,
-  timeout: 15000 // 15 second timeout
+  timeout: 30000 // 30 second timeout for production
 });
 
 // Add request interceptor to add auth token

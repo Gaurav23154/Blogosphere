@@ -2,6 +2,9 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
+const multer = require('multer');
+const path = require('path');
+const cloudinary = require('cloudinary').v2;
 
 const app = express();
 
@@ -130,6 +133,105 @@ app.post('/api/blogs', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// ✅ Save draft
+app.post('/api/blogs/save-draft', async (req, res) => {
+  try {
+    const { title, content, tags, coverImage } = req.body;
+
+    if (!title || !content) {
+      return res.status(400).json({ error: 'Title and content are required' });
+    }
+
+    const blog = await Blog.create({
+      title,
+      content,
+      tags,
+      coverImage,
+      status: 'draft'
+    });
+
+    res.status(201).json(blog);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ Publish blog
+app.post('/api/blogs/publish', async (req, res) => {
+  try {
+    const { title, content, tags, coverImage } = req.body;
+
+    if (!title || !content) {
+      return res.status(400).json({ error: 'Title and content are required' });
+    }
+
+    const blog = await Blog.create({
+      title,
+      content,
+      tags,
+      coverImage,
+      status: 'published'
+    });
+
+    res.status(201).json(blog);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Configure Cloudinary
+cloudinary.config({
+  url: process.env.CLOUDINARY_URL
+});
+
+// Configure multer for memory storage
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    const filetypes = /jpeg|jpg|png|gif/;
+    const mimetype = filetypes.test(file.mimetype);
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    }
+    cb(new Error('Only image files are allowed!'));
+  }
+});
+
+app.post('/api/upload', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    
+    // Upload to Cloudinary
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        {
+          folder: 'blogosphere',
+          resource_type: 'auto'
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      ).end(req.file.buffer);
+    });
+
+    res.json({ url: result.secure_url });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Error uploading file' });
+  }
+});
+
+// Serve uploaded files
+app.use('/uploads', express.static('uploads'));
 
 // ✅ Update blog
 app.put('/api/blogs/:id', async (req, res) => {
