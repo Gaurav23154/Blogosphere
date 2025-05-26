@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api } from '../context/AuthContext';
@@ -24,6 +24,8 @@ function BlogEditor() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
+  const lastSavedContent = useRef('');
+  const saveTimeout = useRef(null);
 
   useEffect(() => {
     if (id) {
@@ -31,6 +33,7 @@ function BlogEditor() {
         try {
           const response = await api.get(`/blogs/${id}`);
           setBlog(response.data);
+          lastSavedContent.current = response.data.content;
           calculateCounts(response.data.content);
         } catch (error) {
           toast.error('Error fetching blog post');
@@ -50,13 +53,24 @@ function BlogEditor() {
   const autoSave = useCallback(
     async (updatedBlog) => {
       if (isSaving) return;
+      
+      // Only save if content has changed
+      if (updatedBlog.content === lastSavedContent.current) {
+        return;
+      }
+
       setIsSaving(true);
       try {
         if (id) {
           await api.put(`/blogs/${id}`, updatedBlog);
         } else {
-          await api.post('/blogs/save-draft', updatedBlog);
+          const response = await api.post('/blogs/save-draft', updatedBlog);
+          // Update the URL with the new blog ID
+          if (!id) {
+            navigate(`/blogs/edit/${response.data._id}`, { replace: true });
+          }
         }
+        lastSavedContent.current = updatedBlog.content;
         toast.success('Draft saved', {
           icon: '💾',
           style: {
@@ -71,17 +85,27 @@ function BlogEditor() {
         setIsSaving(false);
       }
     },
-    [isSaving, id]
+    [isSaving, id, navigate]
   );
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      if (blog.title || blog.content) {
-        autoSave(blog);
-      }
-    }, 5000);
+    // Clear any existing timeout
+    if (saveTimeout.current) {
+      clearTimeout(saveTimeout.current);
+    }
 
-    return () => clearTimeout(timeoutId);
+    // Only set up auto-save if there's content
+    if (blog.title || blog.content) {
+      saveTimeout.current = setTimeout(() => {
+        autoSave(blog);
+      }, 5000); // 5 second delay
+    }
+
+    return () => {
+      if (saveTimeout.current) {
+        clearTimeout(saveTimeout.current);
+      }
+    };
   }, [blog, autoSave]);
 
   const handleChange = (e) => {
