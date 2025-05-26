@@ -76,14 +76,14 @@ api.interceptors.response.use(
     }
     
     if (error.code === 'ERR_NETWORK') {
-      toast.error('Unable to connect to the server. Please check if the server is running at ' + API_URL);
+      toast.error('Unable to connect to the server. Please check your internet connection.');
     } else if (error.code === 'ECONNABORTED') {
       toast.error('Request timed out. Please try again.');
     } else if (error.response?.status === 401) {
       localStorage.removeItem('token');
       toast.error('Session expired. Please login again.');
     } else {
-      const errorMessage = error.response?.data?.message || 'An error occurred';
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'An error occurred';
       toast.error(errorMessage);
     }
     
@@ -144,10 +144,11 @@ export const AuthProvider = ({ children }) => {
       toast.success('Account created successfully!');
       return { success: true };
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Registration failed');
+      const errorMessage = error.response?.data?.error || 'Registration failed';
+      toast.error(errorMessage);
       return {
         success: false,
-        error: error.response?.data?.error || 'Registration failed'
+        error: errorMessage
       };
     }
   };

@@ -34,11 +34,11 @@ function Register() {
     }
 
     setIsLoading(true);
-    const success = await register({
-      name: formData.name,
-      email: formData.email,
-      password: formData.password
-    });
+    const { success } = await register(
+      formData.name,
+      formData.email,
+      formData.password
+    );
     setIsLoading(false);
     
     if (success) {
