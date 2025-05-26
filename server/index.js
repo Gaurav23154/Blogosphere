@@ -13,7 +13,8 @@ app.use(cors({
   origin: [
     'http://localhost:5173',
     'https://blogosphere-server-seven.vercel.app',
-    'https://blogosphere-git-main-gaurav-jaiswals-projects-031b18ef.vercel.app'
+    'https://blogosphere-git-main-gaurav-jaiswals-projects-031b18ef.vercel.app',
+    'https://blogosphere-pearl.vercel.app'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

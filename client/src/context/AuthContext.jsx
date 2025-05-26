@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 const isDevelopment = import.meta.env.DEV;
 const API_URL = isDevelopment 
   ? 'http://localhost:5000/api' 
-  : 'https://blogosphere-git-main-gaurav-jaiswals-projects-031b18ef.vercel.app/api';
+  : import.meta.env.VITE_API_URL || 'https://blogosphere-pearl.vercel.app/api';
 
 console.log('Current API URL:', API_URL); // Debug log
 
