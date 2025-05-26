@@ -55,6 +55,53 @@ blogSchema.pre('save', function(next) {
 
 const Blog = mongoose.model('Blog', blogSchema);
 
+// MongoDB connection with better error handling
+const connectDB = async () => {
+  try {
+    const mongoURI = process.env.MONGODB_URI;
+    if (!mongoURI) {
+      console.error('MONGODB_URI is not defined in environment variables');
+      throw new Error('MONGODB_URI is not defined in environment variables');
+    }
+    
+    console.log('Attempting to connect to MongoDB...');
+    await mongoose.connect(mongoURI, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      maxPoolSize: 10,
+      minPoolSize: 5,
+      retryWrites: true,
+      retryReads: true
+    });
+    console.log('Connected to MongoDB successfully');
+  } catch (err) {
+    console.error('MongoDB connection error:', err.message);
+    if (process.env.NODE_ENV !== 'production') {
+      process.exit(1);
+    }
+  }
+};
+
+// Initialize database connection
+connectDB();
+
+// Add connection event listeners
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('MongoDB disconnected');
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Attempting to reconnect to MongoDB...');
+    connectDB();
+  }
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('MongoDB reconnected');
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({ 
@@ -284,7 +331,7 @@ app.use('/uploads', express.static('uploads'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Server error:', err);
   res.status(500).json({ 
     error: process.env.NODE_ENV === 'production' 
       ? 'Something went wrong!' 
