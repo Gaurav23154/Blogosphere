@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import axios from 'axios';
+import { api } from '../context/AuthContext';
 import { 
   FiImage, 
   FiSave, 
@@ -29,16 +29,17 @@ function BlogEditor() {
     if (id) {
       const fetchBlog = async () => {
         try {
-          const response = await axios.get(`/api/blogs/${id}`);
+          const response = await api.get(`/blogs/${id}`);
           setBlog(response.data);
           calculateCounts(response.data.content);
         } catch (error) {
           toast.error('Error fetching blog post');
+          navigate('/blogs');
         }
       };
       fetchBlog();
     }
-  }, [id]);
+  }, [id, navigate]);
 
   const calculateCounts = (content) => {
     const text = content.replace(/<[^>]*>/g, ' ').trim();
@@ -51,7 +52,11 @@ function BlogEditor() {
       if (isSaving) return;
       setIsSaving(true);
       try {
-        await axios.post('/api/blogs/save-draft', updatedBlog);
+        if (id) {
+          await api.put(`/blogs/${id}`, updatedBlog);
+        } else {
+          await api.post('/blogs/save-draft', updatedBlog);
+        }
         toast.success('Draft saved', {
           icon: '💾',
           style: {
@@ -66,7 +71,7 @@ function BlogEditor() {
         setIsSaving(false);
       }
     },
-    [isSaving]
+    [isSaving, id]
   );
 
   useEffect(() => {
@@ -94,7 +99,11 @@ function BlogEditor() {
     try {
       const formData = new FormData();
       formData.append('image', file);
-      const response = await axios.post('/api/upload', formData);
+      const response = await api.post('/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
       setBlog((prev) => ({ ...prev, coverImage: response.data.url }));
       toast.success('Cover image uploaded!');
     } catch (error) {
@@ -106,7 +115,11 @@ function BlogEditor() {
     e.preventDefault();
     setIsPublishing(true);
     try {
-      const response = await axios.post('/api/blogs/publish', blog);
+      if (id) {
+        await api.put(`/blogs/${id}`, { ...blog, status: 'published' });
+      } else {
+        await api.post('/blogs/publish', blog);
+      }
       toast.success('Blog published successfully!', {
         icon: '🎉',
         style: {
@@ -115,7 +128,7 @@ function BlogEditor() {
           color: '#fff',
         },
       });
-      navigate(`/blogs/${response.data.id}`);
+      navigate('/blogs');
     } catch (error) {
       toast.error('Error publishing blog');
     } finally {
@@ -126,7 +139,7 @@ function BlogEditor() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold bg-linear-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+        <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
           {id ? 'Edit Your Story' : 'Create New Story'}
         </h1>
         <div className="flex items-center space-x-4">
@@ -171,43 +184,50 @@ function BlogEditor() {
 
         {/* Title Input */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Story Title
+          <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
+            Title
           </label>
           <input
             type="text"
+            id="title"
             name="title"
             value={blog.title}
             onChange={handleChange}
-            className="w-full px-4 py-3 text-2xl font-semibold border-0 border-b-2 border-gray-200 focus:border-indigo-500 focus:ring-0 transition-colors"
-            placeholder="Your amazing story title..."
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            placeholder="Enter your blog title"
             required
           />
         </div>
 
-        {/* Content Editor */}
-        <div className="rounded-lg overflow-hidden shadow-lg">
+        {/* Content Input */}
+        <div>
+          <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-2">
+            Content
+          </label>
           <textarea
+            id="content"
             name="content"
             value={blog.content}
             onChange={handleChange}
-            className="w-full h-[600px] p-4 text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 resize-none"
-            placeholder="Start writing your story here..."
+            className="w-full h-96 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            placeholder="Write your blog content here..."
+            required
           />
         </div>
 
         {/* Tags Input */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Tags (comma separated)
+          <label htmlFor="tags" className="block text-sm font-medium text-gray-700 mb-2">
+            Tags (comma-separated)
           </label>
           <input
             type="text"
+            id="tags"
             name="tags"
             value={blog.tags}
             onChange={handleChange}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 transition-colors"
-            placeholder="technology, programming, web-development"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            placeholder="e.g., technology, programming, web development"
           />
         </div>
 
@@ -244,7 +264,7 @@ function BlogEditor() {
           <button
             type="submit"
             disabled={isPublishing}
-            className="px-8 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 rounded-lg text-white hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-md hover:shadow-lg flex items-center space-x-2"
+            className="px-8 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg text-white hover:from-indigo-700 hover:to-purple-700 transition-colors shadow-md hover:shadow-lg flex items-center space-x-2"
           >
             {isPublishing ? (
               <>

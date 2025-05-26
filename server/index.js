@@ -78,13 +78,14 @@ mongoose.connection.on('reconnected', () => {
   console.log('MongoDB reconnected');
 });
 
-// ✅ Blog Schema (tags as Array)
+// ✅ Blog Schema
 const blogSchema = new mongoose.Schema({
   title: { type: String, required: true },
   content: { type: String, required: true },
   tags: { type: [String], default: [] },
   coverImage: { type: String },
   status: { type: String, enum: ['draft', 'published'], default: 'draft' },
+  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now }
 });
@@ -92,11 +93,6 @@ const blogSchema = new mongoose.Schema({
 // ✅ Auto-update `updated_at`
 blogSchema.pre('save', function(next) {
   this.updated_at = new Date();
-  next();
-});
-
-blogSchema.pre('findOneAndUpdate', function(next) {
-  this._update.updated_at = new Date();
   next();
 });
 
@@ -146,13 +142,15 @@ app.post('/api/blogs/save-draft', async (req, res) => {
     const blog = await Blog.create({
       title,
       content,
-      tags,
+      tags: tags || [],
       coverImage,
-      status: 'draft'
+      status: 'draft',
+      author: req.user.id
     });
 
     res.status(201).json(blog);
   } catch (error) {
+    console.error('Save draft error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -169,13 +167,112 @@ app.post('/api/blogs/publish', async (req, res) => {
     const blog = await Blog.create({
       title,
       content,
-      tags,
+      tags: tags || [],
       coverImage,
-      status: 'published'
+      status: 'published',
+      author: req.user.id
     });
 
     res.status(201).json(blog);
   } catch (error) {
+    console.error('Publish error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ Get user's blogs
+app.get('/api/blogs/user', async (req, res) => {
+  try {
+    const blogs = await Blog.find({ author: req.user.id })
+      .sort({ updated_at: -1 });
+    res.json(blogs);
+  } catch (error) {
+    console.error('Get user blogs error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ Get all blogs
+app.get('/api/blogs', async (req, res) => {
+  try {
+    const published = await Blog.find({ status: 'published' })
+      .sort({ updated_at: -1 });
+    const drafts = await Blog.find({ 
+      status: 'draft',
+      author: req.user.id 
+    }).sort({ updated_at: -1 });
+    res.json({ published, drafts });
+  } catch (error) {
+    console.error('Get all blogs error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ Get single blog
+app.get('/api/blogs/:id', async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    if (!blog) {
+      return res.status(404).json({ error: 'Blog not found' });
+    }
+    res.json(blog);
+  } catch (error) {
+    console.error('Get single blog error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ Update blog
+app.put('/api/blogs/:id', async (req, res) => {
+  try {
+    const { title, content, tags, status, coverImage } = req.body;
+    const blog = await Blog.findById(req.params.id);
+
+    if (!blog) {
+      return res.status(404).json({ error: 'Blog not found' });
+    }
+
+    if (blog.author.toString() !== req.user.id) {
+      return res.status(401).json({ error: 'Not authorized' });
+    }
+
+    const updatedBlog = await Blog.findByIdAndUpdate(
+      req.params.id,
+      { 
+        title, 
+        content, 
+        tags: tags || blog.tags, 
+        coverImage: coverImage || blog.coverImage,
+        status: status || blog.status,
+        updated_at: new Date()
+      },
+      { new: true, runValidators: true }
+    );
+
+    res.json(updatedBlog);
+  } catch (error) {
+    console.error('Update blog error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ Delete blog
+app.delete('/api/blogs/:id', async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+
+    if (!blog) {
+      return res.status(404).json({ error: 'Blog not found' });
+    }
+
+    if (blog.author.toString() !== req.user.id) {
+      return res.status(401).json({ error: 'Not authorized' });
+    }
+
+    await blog.deleteOne();
+    res.json({ message: 'Blog deleted successfully' });
+  } catch (error) {
+    console.error('Delete blog error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -232,51 +329,6 @@ app.post('/api/upload', upload.single('image'), async (req, res) => {
 
 // Serve uploaded files
 app.use('/uploads', express.static('uploads'));
-
-// ✅ Update blog
-app.put('/api/blogs/:id', async (req, res) => {
-  try {
-    const { title, content, tags, status, coverImage } = req.body;
-
-    const updatedBlog = await Blog.findByIdAndUpdate(
-      req.params.id,
-      { title, content, tags, coverImage, status },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedBlog) {
-      return res.status(404).json({ error: 'Blog not found' });
-    }
-
-    res.json(updatedBlog);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ✅ Get all blogs grouped by status
-app.get('/api/blogs', async (req, res) => {
-  try {
-    const published = await Blog.find({ status: 'published' }).sort({ updated_at: -1 });
-    const drafts = await Blog.find({ status: 'draft' }).sort({ updated_at: -1 });
-    res.json({ published, drafts });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ✅ Get single blog
-app.get('/api/blogs/:id', async (req, res) => {
-  try {
-    const blog = await Blog.findById(req.params.id);
-    if (!blog) {
-      return res.status(404).json({ error: 'Blog not found' });
-    }
-    res.json(blog);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
